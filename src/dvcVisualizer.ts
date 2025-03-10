@@ -11,13 +11,22 @@ export class DVCVisualizer {
   #centroidVoronoi!: BarycentricDualMesh;
   #centroidCells!: number[][][];
   backgroundColor = '#eeeeee';
+  #options: { showDelaunay: boolean; showVoronoi: boolean; showCentroids: boolean } = {
+    showDelaunay: true,
+    showVoronoi: true,
+    showCentroids: true,
+  };
 
-  constructor(ctx: CanvasRenderingContext2D, delaunay: Delaunay<number>) {
+  constructor(
+    ctx: CanvasRenderingContext2D,
+    delaunay: Delaunay<number>,
+    options?: { showDelaunay: boolean; showVoronoi: boolean; showCentroids: boolean }
+  ) {
     this.#ctx = ctx;
     this.#delaunay = delaunay;
     this.#width = ctx.canvas.width;
     this.#height = ctx.canvas.height;
-    this.update();
+    this.update(options);
   }
 
   #init() {
@@ -37,9 +46,9 @@ export class DVCVisualizer {
     }
   }
 
-  update() {
+  update(options?: { showDelaunay: boolean; showVoronoi: boolean; showCentroids: boolean }) {
+    this.#options = { ...this.#options, ...options };
     this.#init();
-    this.render();
   }
 
   render() {
@@ -47,20 +56,26 @@ export class DVCVisualizer {
     this.#ctx.fillRect(0, 0, this.#width, this.#height);
 
     // Delaunay
-    this.#renderDelaunayLines(this.#delaunay, 2, '#999999');
-    this.#renderPoints(this.#delaunay.points, 5, '#ff7777');
+    if (this.#options.showDelaunay) {
+      this.#renderDelaunayLines(this.#delaunay, 2, '#999999');
+      this.#renderPoints(this.#delaunay.points, 5, '#ff7777');
+    }
 
     // Voronoi
-    for (const polygon of this.#voronoiPolygons) {
-      this.#renderLines(polygon.flat(), 2, '#8888ff');
+    if (this.#options.showVoronoi) {
+      for (const polygon of this.#voronoiPolygons) {
+        this.#renderLines(polygon.flat(), 3, '#8888ff');
+      }
+      this.#renderPoints(this.#voronoi.circumcenters, 4, '#5555ff');
     }
-    this.#renderPoints(this.#voronoi.circumcenters, 5, '#5555ff');
 
     // Centroids
-    for (const cell of this.#centroidCells) {
-      this.#renderLines(cell.flat(), 2, '#88ff88');
+    if (this.#options.showCentroids) {
+      for (const cell of this.#centroidCells) {
+        this.#renderLines(cell.flat(), 3, '#88ff88');
+      }
+      this.#renderPoints(this.#centroidVoronoi.centroids, 4, '#55ff55');
     }
-    this.#renderPoints(this.#centroidVoronoi.centroids, 5, '#55ff55');
   }
 
   #renderPoints(points: ArrayLike<number>, radius = 6, fill = '#ff0000') {
