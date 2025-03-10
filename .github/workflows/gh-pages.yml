@@ -1,0 +1,58 @@
+# Simple workflow to host a github page based on this git project
+# Add custom domain (CNAME file) to your deployment manually through "Settings>Pages>Custom Domain"
+# Be aware that DNS propagation takes <= 1h, don't be alarmed by HTTPS warnings.
+
+# https://github.com/marketplace/actions/deploy-to-github-pages
+
+name: Build and Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+  deployments: write ## Github Pages
+
+concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9.14.2
+
+      - name: Set Node.js 20.x 🔧
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: 'pnpm'
+      - name: Install Dependencies 📦
+        run: pnpm install --frozen-lockfile
+
+      - name: Build 🏗
+        run: pnpm build
+
+      # - name: Copy sitemap
+      #   run: cp sitemap.xml dist
+
+      #      - name: Test 🔍
+      #        run: |
+      #          npm test
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4.6.9
+        with:
+          # creates hidden "gh-pages" branch from this to keep main clean
+          folder: dist # build target of npm
