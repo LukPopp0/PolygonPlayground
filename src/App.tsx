@@ -1,20 +1,57 @@
-import { useEffect, useRef, useState } from 'react';
+import { ChangeEventHandler, useEffect, useRef, useState } from 'react';
 import { Delaunay } from 'd3-delaunay';
 import MersenneTwister from 'mersenne-twister';
-import { DVCVisualizer } from './dvcVisualizer';
+import { DelaunayDualVisualizer } from './delaunayDualVisualizer';
+import { useAtom } from 'jotai';
+import { displayOptions, displaySize, nPoints } from './state';
+import { DualType } from './types/displayOptions';
 
-const width = 720,
-  height = 720;
+const BoolSetting = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: ChangeEventHandler<HTMLInputElement>;
+}) => (
+  <div>
+    <label htmlFor={`checkbox-${label}`}>{label}: </label>
+    <input type="checkbox" id={`checkbox-${label}`} checked={value} onChange={onChange} />
+  </div>
+);
+
+const SelectSetting = ({
+  label,
+  selectedValue,
+  options,
+  onChange,
+}: {
+  label: string;
+  selectedValue: string;
+  options: { label: string; value: string }[];
+  onChange: ChangeEventHandler<HTMLSelectElement>;
+}) => {
+  return (
+    <div>
+      <label htmlFor={`select-${label.replace(' ', '')}`}>{label}: </label>
+      <select value={selectedValue} id={`select-${label.replace(' ', '')}`} onChange={onChange}>
+        {options.map(({ label: l, value: v }) => (
+          <option key={`${l}:${v}`} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 const App = () => {
+  const [{ width, height }] = useAtom(displaySize);
+  const [displaySettings, setDisplaySettings] = useAtom(displayOptions);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [visualizer, setVisualizer] = useState<DVCVisualizer | null>(null);
-  const [numPoints, setNumPoints] = useState(40);
-  const [showDelaunay, setShowDelaunay] = useState(true);
-  const [showVoronoi, setShowVoronoi] = useState(true);
-  const [showCentroids, setShowCentroids] = useState(true);
-  // TODO:
-  // const [showInterpolation, setShowInterpolation] = useState(false);
+  const [visualizer, setVisualizer] = useState<DelaunayDualVisualizer | null>(null);
+  const [numPoints, setNumPoints] = useAtom(nPoints);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -34,14 +71,14 @@ const App = () => {
     ];
 
     const delaunay = new Delaunay<number>(randomPoints.flat());
-    setVisualizer(new DVCVisualizer(ctx, delaunay));
-  }, [numPoints]);
+    setVisualizer(new DelaunayDualVisualizer(ctx, delaunay));
+  }, [height, numPoints, width]);
 
   useEffect(() => {
     if (!visualizer) return;
-    visualizer.update({ showDelaunay, showVoronoi, showCentroids });
+    visualizer.update(displaySettings);
     visualizer.render();
-  }, [visualizer, showDelaunay, showVoronoi, showCentroids]);
+  }, [visualizer, displaySettings]);
 
   return (
     <div style={{ width: '100dvw', height: '100dvh', alignContent: 'center', textAlign: 'center' }}>
@@ -51,18 +88,67 @@ const App = () => {
           <label>Num. Points: </label>
           <input type="number" value={numPoints} onChange={e => setNumPoints(Number(e.target.value))} />
         </div>
-        <div>
-          <label>Show Delaunay: </label>
-          <input type="checkbox" checked={showDelaunay} onChange={() => setShowDelaunay(v => !v)} />
-        </div>
-        <div>
-          <label>Show Voronoi Dual: </label>
-          <input type="checkbox" checked={showVoronoi} onChange={() => setShowVoronoi(v => !v)} />
-        </div>
-        <div>
-          <label>Show Centroidal Dual: </label>
-          <input type="checkbox" checked={showCentroids} onChange={() => setShowCentroids(v => !v)} />
-        </div>
+        <BoolSetting
+          label="Show Delaunay"
+          value={displaySettings.showDelaunay}
+          onChange={() => setDisplaySettings(v => ({ ...v, showDelaunay: !v.showDelaunay }))}
+        />
+        <BoolSetting
+          label="Show Voronoi Dual"
+          value={displaySettings.showVoronoi}
+          onChange={() => setDisplaySettings(v => ({ ...v, showVoronoi: !v.showVoronoi }))}
+        />
+        <BoolSetting
+          label="Show Centroidal Dual"
+          value={displaySettings.showCentroids}
+          onChange={() => setDisplaySettings(v => ({ ...v, showCentroids: !v.showCentroids }))}
+        />
+        <BoolSetting
+          label="Show Incenter Dual"
+          value={displaySettings.showIncenter}
+          onChange={() => setDisplaySettings(v => ({ ...v, showIncenter: !v.showIncenter }))}
+        />
+        <BoolSetting
+          label="Show interpolated Dual"
+          value={displaySettings.showInterpolation}
+          onChange={() => setDisplaySettings(v => ({ ...v, showInterpolation: !v.showInterpolation }))}
+        />
+        {displaySettings.showInterpolation && (
+          <>
+            <SelectSetting
+              label="Interpolation Start"
+              selectedValue={displaySettings.interpolationStart}
+              options={[
+                { value: 'voronoi', label: 'Voronoi' },
+                { value: 'centroid', label: 'Centroid' },
+                { value: 'incenter', label: 'Incenter' },
+              ]}
+              onChange={e => setDisplaySettings(v => ({ ...v, interpolationStart: e.target.value as DualType }))}
+            />
+            <SelectSetting
+              label="Interpolation End"
+              selectedValue={displaySettings.interpolationEnd}
+              options={[
+                { value: 'voronoi', label: 'Voronoi' },
+                { value: 'centroid', label: 'Centroid' },
+                { value: 'incenter', label: 'Incenter' },
+              ]}
+              onChange={e => setDisplaySettings(v => ({ ...v, interpolationEnd: e.target.value as DualType }))}
+            />
+            <div>
+              <label htmlFor="range-interpolation">Interpolation: </label>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={displaySettings.interpolation}
+                id="range-interpolation"
+                onChange={e => setDisplaySettings(v => ({ ...v, interpolation: Number(e.target.value) }))}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
