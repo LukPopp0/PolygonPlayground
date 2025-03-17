@@ -1,29 +1,63 @@
-import { Delaunay, Voronoi } from 'd3-delaunay';
-import { BarycentricDualMesh, DelaunayDualMesh, IncentricDualMesh } from './delaunayDualMesh';
+import { Delaunay } from 'd3-delaunay';
+import { DelaunayDualMesh } from './delaunayDualMesh';
 import type { DisplayOptions } from './types/displayOptions';
 
 const lineThickness = 2;
 const delaunayPointSize = 6;
 const dualMeshPointSize = 4;
 
+function calculateBarycenters(delaunay: Delaunay<number>) {
+  const centroids = new Array<number>((delaunay.triangles.length / 3) * 2);
+  for (let i = 0; i < delaunay.triangles.length / 3; i++) {
+    const [[x0, y0], [x1, y1], [x2, y2]] = delaunay.trianglePolygon(i);
+    centroids[2 * i] = (x0 + x1 + x2) / 3;
+    centroids[2 * i + 1] = (y0 + y1 + y2) / 3;
+  }
+  return centroids;
+}
+
+function calculateIncenters(delaunay: Delaunay<number>) {
+  const incenters = new Array<number>((delaunay.triangles.length / 3) * 2);
+  for (let i = 0; i < delaunay.triangles.length / 3; i++) {
+    const [[x0, y0], [x1, y1], [x2, y2]] = delaunay.trianglePolygon(i);
+    const a = Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+    const b = Math.sqrt((x0 - x2) ** 2 + (y0 - y2) ** 2);
+    const c = Math.sqrt((x0 - x1) ** 2 + (y0 - y1) ** 2);
+
+    incenters[2 * i] = (a * x0 + b * x1 + c * x2) / (a + b + c);
+    incenters[2 * i + 1] = (a * y0 + b * y1 + c * y2) / (a + b + c);
+  }
+  return incenters;
+}
+
+function calculateCicumcenters(delaunay: Delaunay<number>) {
+  const circumcenters = new Array<number>((delaunay.triangles.length / 3) * 2);
+  for (let i = 0; i < delaunay.triangles.length / 3; i++) {
+    const [[x0, y0], [x1, y1], [x2, y2]] = delaunay.trianglePolygon(i);
+    const a = x1 - x0;
+    const b = y1 - y0;
+    const c = x2 - x0;
+    const d = y2 - y0;
+    const e = a * (x0 + x1) + b * (y0 + y1);
+    const f = c * (x0 + x2) + d * (y0 + y2);
+    const g = 2 * (a * (y2 - y1) - b * (x2 - x1));
+    circumcenters[2 * i] = (d * e - b * f) / g;
+    circumcenters[2 * i + 1] = (a * f - c * e) / g;
+  }
+  return circumcenters;
+}
+
 export class DelaunayDualVisualizer {
   #ctx: CanvasRenderingContext2D;
   #width: number;
   #height: number;
   #delaunay: Delaunay<number>;
-  #voronoi!: Voronoi<number>;
-  #voronoiPolygons!: number[][][];
-  #centroidVoronoi!: BarycentricDualMesh;
-  #centroidCells!: number[][][];
-  #incentricVoronoi!: IncentricDualMesh;
-  #incentricCells!: number[][][];
+  #voronoi!: DelaunayDualMesh;
+  #centroidVoronoi!: DelaunayDualMesh;
+  #incentricVoronoi!: DelaunayDualMesh;
   backgroundColor = '#555555';
   #options: Partial<DisplayOptions> = {
     showDelaunay: true,
-    showVoronoi: true,
-    showCentroids: false,
-    showIncenter: false,
-    showInterpolation: false,
   };
 
   constructor(ctx: CanvasRenderingContext2D, delaunay: Delaunay<number>, options?: Partial<DisplayOptions>) {
@@ -38,23 +72,12 @@ export class DelaunayDualVisualizer {
     this.#width = this.#ctx.canvas.width;
     this.#height = this.#ctx.canvas.height;
 
-    this.#voronoi = this.#delaunay.voronoi([0, 0, this.#width, this.#height]);
-    this.#voronoiPolygons = new Array<number[][]>();
-    for (const cellPolygon of this.#voronoi.cellPolygons()) {
-      this.#voronoiPolygons.push(cellPolygon);
-    }
-
-    this.#centroidVoronoi = new BarycentricDualMesh(this.#delaunay, [0, 0, this.#width, this.#height]);
-    this.#centroidCells = new Array<number[][]>();
-    for (const centroidPolygon of this.#centroidVoronoi.cellPolygons()) {
-      this.#centroidCells.push(centroidPolygon);
-    }
-
-    this.#incentricVoronoi = new IncentricDualMesh(this.#delaunay, [0, 0, this.#width, this.#height]);
-    this.#incentricCells = new Array<number[][]>();
-    for (const incentricPolygon of this.#incentricVoronoi.cellPolygons()) {
-      this.#incentricCells.push(incentricPolygon);
-    }
+    const circumcenters = calculateCicumcenters(this.#delaunay);
+    this.#voronoi = new DelaunayDualMesh(this.#delaunay, [0, 0, this.#width, this.#height], circumcenters);
+    const barycenters = calculateBarycenters(this.#delaunay);
+    this.#centroidVoronoi = new DelaunayDualMesh(this.#delaunay, [0, 0, this.#width, this.#height], barycenters);
+    const incenters = calculateIncenters(this.#delaunay);
+    this.#incentricVoronoi = new DelaunayDualMesh(this.#delaunay, [0, 0, this.#width, this.#height], incenters);
   }
 
   update(options?: Partial<DisplayOptions>) {
@@ -73,46 +96,35 @@ export class DelaunayDualVisualizer {
     }
 
     // Voronoi
-    if (this.#options.showVoronoi) {
-      for (const polygon of this.#voronoiPolygons) {
-        this.#renderLines(polygon.flat(), lineThickness, '#ffcccc');
-      }
-      this.#renderPoints(this.#voronoi.circumcenters, dualMeshPointSize, '#ff4444');
+    if (this.#options.selectedDualMesh === 'voronoi') {
+      this.#renderDualMesh(this.#voronoi, '#ccccff', '#4444ff');
     }
 
     // Centroids
-    if (this.#options.showCentroids) {
-      for (const cell of this.#centroidCells) {
-        this.#renderLines(cell.flat(), lineThickness, '#ccffcc');
-      }
-      this.#renderPoints(this.#centroidVoronoi.dualPoints, dualMeshPointSize, '#44ff44');
+    if (this.#options.selectedDualMesh === 'centroid') {
+      this.#renderDualMesh(this.#centroidVoronoi, '#ccffcc', '#44ff44');
     }
 
     // Incenters
-    if (this.#options.showIncenter) {
-      for (const cell of this.#incentricCells) {
-        this.#renderLines(cell.flat(), lineThickness, '#ffffcc');
-      }
-      this.#renderPoints(this.#incentricVoronoi.dualPoints, dualMeshPointSize, '#ffff44');
+    if (this.#options.selectedDualMesh === 'incenter') {
+      this.#renderDualMesh(this.#incentricVoronoi, '#ffffcc', '#ffff44');
     }
 
     // Interpolation
     // This is very much optional but it works...
-    if ((this.#options.showInterpolation && this.#options.interpolationStart && this.#options.interpolationEnd)) {
+    if (
+      this.#options.selectedDualMesh === 'interpolated' &&
+      this.#options.interpolationStart &&
+      this.#options.interpolationEnd
+    ) {
       const iStart = this.#options.interpolationStart;
       const iEnd = this.#options.interpolationEnd;
-      const pointsA =
-        iStart === 'voronoi'
-          ? this.#voronoi.circumcenters
-          : iStart === 'centroid'
-          ? this.#centroidVoronoi.dualPoints
-          : this.#incentricVoronoi.dualPoints;
-      const pointsB =
-        iEnd === 'voronoi'
-          ? this.#voronoi.circumcenters
-          : iEnd === 'centroid'
-          ? this.#centroidVoronoi.dualPoints
-          : this.#incentricVoronoi.dualPoints;
+      const pointsA = (
+        iStart === 'voronoi' ? this.#voronoi : iStart === 'centroid' ? this.#centroidVoronoi : this.#incentricVoronoi
+      ).dualPoints;
+      const pointsB = (
+        iEnd === 'voronoi' ? this.#voronoi : iEnd === 'centroid' ? this.#centroidVoronoi : this.#incentricVoronoi
+      ).dualPoints;
 
       const interpolatedPoints = new Array<number>(pointsA.length);
       const interpolation = this.#options.interpolation ?? 0.5;
@@ -124,12 +136,23 @@ export class DelaunayDualVisualizer {
       for (const interpolated of dualMesh.cellPolygons()) {
         dualCells.push(interpolated);
       }
-      // Render
-      for (const cell of dualCells) {
-        this.#renderLines(cell.flat(), lineThickness, '#ccccff');
-      }
-      this.#renderPoints(dualMesh.dualPoints, dualMeshPointSize, '#4444ff');
+      this.#renderDualMesh(dualMesh, '#ccccff', '#4444ff');
     }
+  }
+
+  #getCells(mesh: DelaunayDualMesh) {
+    const cells = new Array<number[][]>();
+    for (const cellPolygon of mesh.cellPolygons()) {
+      cells.push(cellPolygon);
+    }
+    return cells;
+  }
+
+  #renderDualMesh(mesh: DelaunayDualMesh, lineColor: string, pointColor: string) {
+    for (const cell of this.#getCells(mesh)) {
+      this.#renderLines(cell.flat(), lineThickness, lineColor);
+    }
+    this.#renderPoints(mesh.dualPoints, dualMeshPointSize, pointColor);
   }
 
   #renderPoints(points: ArrayLike<number>, radius = 6, fill = '#ff0000') {

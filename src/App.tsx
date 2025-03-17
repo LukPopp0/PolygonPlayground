@@ -81,7 +81,18 @@ const App = () => {
   }, [visualizer, displaySettings]);
 
   return (
-    <div style={{ width: '100dvw', height: '100dvh', alignContent: 'center', textAlign: 'center' }}>
+    <div
+      style={{
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        paddingTop: '5rem',
+        paddingBottom: '5rem',
+        alignItems: 'center',
+        height: 'calc(100% - 10rem)',
+      }}
+    >
       <canvas ref={canvasRef} width={width} height={height} id="canvas" style={{ border: '1px solid white' }} />
       <div>
         <div>
@@ -93,27 +104,32 @@ const App = () => {
           value={displaySettings.showDelaunay}
           onChange={() => setDisplaySettings(v => ({ ...v, showDelaunay: !v.showDelaunay }))}
         />
-        <BoolSetting
-          label="Show Voronoi Dual"
-          value={displaySettings.showVoronoi}
-          onChange={() => setDisplaySettings(v => ({ ...v, showVoronoi: !v.showVoronoi }))}
+        <SelectSetting
+          label="Selected Dual Mesh"
+          selectedValue={displaySettings.selectedDualMesh}
+          options={[
+            { value: 'voronoi', label: 'Voronoi' },
+            { value: 'centroid', label: 'Centroid' },
+            { value: 'incenter', label: 'Incenter' },
+            { value: 'interpolated', label: 'Interpolated' },
+          ]}
+          onChange={e => setDisplaySettings(v => ({ ...v, selectedDualMesh: e.target.value as DualType }))}
         />
-        <BoolSetting
-          label="Show Centroidal Dual"
-          value={displaySettings.showCentroids}
-          onChange={() => setDisplaySettings(v => ({ ...v, showCentroids: !v.showCentroids }))}
-        />
-        <BoolSetting
-          label="Show Incenter Dual"
-          value={displaySettings.showIncenter}
-          onChange={() => setDisplaySettings(v => ({ ...v, showIncenter: !v.showIncenter }))}
-        />
-        <BoolSetting
-          label="Show interpolated Dual"
-          value={displaySettings.showInterpolation}
-          onChange={() => setDisplaySettings(v => ({ ...v, showInterpolation: !v.showInterpolation }))}
-        />
-        {displaySettings.showInterpolation && (
+        {displaySettings.selectedDualMesh === 'voronoi' && (
+          <div>
+            <label htmlFor="range-relaxation-steps">Relaxation: </label>
+            <input
+              type="range"
+              min={0}
+              max={5}
+              step={1}
+              value={displaySettings.relaxationSteps}
+              id="range-relaxation-steps"
+              onChange={e => setDisplaySettings(v => ({ ...v, relaxationSteps: Number(e.target.value) }))}
+            />
+          </div>
+        )}
+        {displaySettings.selectedDualMesh === 'interpolated' && (
           <>
             <SelectSetting
               label="Interpolation Start"

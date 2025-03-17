@@ -3,10 +3,8 @@ import type { DisplayOptions } from './types/displayOptions';
 
 export const displayOptions = atom<DisplayOptions>({
   showDelaunay: true,
-  showVoronoi: false,
-  showCentroids: false,
-  showIncenter: false,
-  showInterpolation: true,
+  selectedDualMesh: 'voronoi',
+  relaxationSteps: 0,
   interpolationStart: 'voronoi',
   interpolationEnd: 'centroid',
   interpolation: 0.5,

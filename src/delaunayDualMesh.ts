@@ -57,7 +57,7 @@ export class DelaunayDualMesh extends Voronoi<number> {
     }
   }
 
-  // Copy of the _cell function from d3-delaunay replacing circumcenters with the centroids
+  // Copy of the _cell function from d3-delaunay replacing circumcenters with the dual points
   _cell(i: number) {
     const {
       dualPoints,
@@ -99,7 +99,7 @@ export class BarycentricDualMesh extends DelaunayDualMesh {
 }
 
 /**
- * This class extends the Voronoi class from d3-delaunay to use centroids instead of circumcenters.
+ * This class extends the Voronoi class from d3-delaunay to use incenters instead of circumcenters.
  */
 export class IncentricDualMesh extends DelaunayDualMesh {
   constructor(delaunay: Delaunay<number>, [xmin, ymin, xmax, ymax]: [number, number, number, number]) {
